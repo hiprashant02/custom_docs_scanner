@@ -10,6 +10,8 @@ import org.opencv.imgproc.Imgproc
 import kotlin.math.abs
 import kotlin.math.sqrt
 
+import org.opencv.core.Size
+
 private const val TAG = "DocumentDetector"
 
 class DocumentDetector {
@@ -96,7 +98,7 @@ class DocumentDetector {
         val maxArea = imageArea * 0.90
         
         val blurred = Mat()
-        Imgproc.medianBlur(image, blurred, 9)
+        applyBlur(image, blurred)
         
         val gray0 = Mat(blurred.size(), CvType.CV_8UC1)
         val gray = Mat()
@@ -121,7 +123,7 @@ class DocumentDetector {
         val maxArea = imageArea * 0.90
         
         val blurred = Mat()
-        Imgproc.medianBlur(grayMat, blurred, 9)
+        applyBlur(grayMat, blurred)
         
         val gray = Mat()
         
@@ -144,7 +146,7 @@ class DocumentDetector {
         val thresholdLevel = 2
         for (l in 0 until thresholdLevel) {
             if (l == 0) {
-                Imgproc.Canny(channel, gray, 10.0, 20.0, 3)
+                applyCannyEdgeDetection(channel, gray)
                 Imgproc.dilate(gray, gray, Mat())
             } else {
                 val thresh = ((l + 1) * 255 / thresholdLevel).toDouble()
@@ -225,6 +227,44 @@ class DocumentDetector {
         }
         
         return bestSquare
+    }
+    
+    private fun applyBlur(src: Mat, dst: Mat) {
+        when (DetectionConfig.blurMode) {
+            DetectionConfig.BlurMode.MEDIAN_BLUR_9 -> {
+                Imgproc.medianBlur(src, dst, 9)
+            }
+            DetectionConfig.BlurMode.GAUSSIAN_BLUR_5 -> {
+                Imgproc.GaussianBlur(src, dst, Size(5.0, 5.0), 0.0)
+            }
+        }
+    }
+    
+    private fun applyCannyEdgeDetection(src: Mat, dst: Mat) {
+        when (DetectionConfig.cannyMode) {
+            DetectionConfig.CannyMode.FIXED_10_20 -> {
+                Imgproc.Canny(src, dst, 10.0, 20.0, 3)
+            }
+            DetectionConfig.CannyMode.FIXED_75_200 -> {
+                Imgproc.Canny(src, dst, 75.0, 200.0, 3)
+            }
+            DetectionConfig.CannyMode.AUTO_OTSU -> {
+                val otsuThresh = calculateOtsuThreshold(src)
+                val lowThresh = otsuThresh * 0.5
+                val highThresh = otsuThresh
+                Imgproc.Canny(src, dst, lowThresh, highThresh, 3)
+            }
+        }
+    }
+    
+    private fun calculateOtsuThreshold(src: Mat): Double {
+        val tempBinary = Mat()
+        val otsuThreshValue = Imgproc.threshold(
+            src, tempBinary, 0.0, 255.0,
+            Imgproc.THRESH_BINARY or Imgproc.THRESH_OTSU
+        )
+        tempBinary.release()
+        return otsuThreshValue
     }
     
     private fun angle(pt1: Point, pt2: Point, pt0: Point): Double {
