@@ -59,6 +59,12 @@ class ObjectDetectionAnalyzer(
                 DetectionConfig.DetectionMode.BITMAP_BGR_3CHANNELS -> {
                     analyzeBitmapMode(imageProxy)
                 }
+                DetectionConfig.DetectionMode.HSV_SATURATION -> {
+                    analyzeHSVMode(imageProxy)
+                }
+                DetectionConfig.DetectionMode.MORPH_GRADIENT -> {
+                    analyzeMorphGradientMode(imageProxy)
+                }
                 DetectionConfig.DetectionMode.PLANES_GRAYSCALE -> {
                     analyzeGrayscaleMode(imageProxy)
                 }
@@ -85,6 +91,60 @@ class ObjectDetectionAnalyzer(
         }
         
         val document = documentDetector.detectDocument(rotatedBitmap)
+        
+        val sourceWidth = rotatedBitmap.width
+        val sourceHeight = rotatedBitmap.height
+        
+        handleDetectionResult(document, sourceWidth, sourceHeight)
+        
+        rotatedBitmap.recycle()
+    }
+    
+    /**
+     * HSV Saturation-based detection for colored documents
+     */
+    private fun analyzeHSVMode(imageProxy: ImageProxy) {
+        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        
+        val originalBitmap = imageProxy.toBitmap()
+        
+        val rotatedBitmap = if (rotationDegrees != 0) {
+            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+            Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true).also {
+                if (it != originalBitmap) originalBitmap.recycle()
+            }
+        } else {
+            originalBitmap
+        }
+        
+        val document = documentDetector.detectDocumentHSV(rotatedBitmap)
+        
+        val sourceWidth = rotatedBitmap.width
+        val sourceHeight = rotatedBitmap.height
+        
+        handleDetectionResult(document, sourceWidth, sourceHeight)
+        
+        rotatedBitmap.recycle()
+    }
+    
+    /**
+     * Morphological Gradient detection - color-independent
+     */
+    private fun analyzeMorphGradientMode(imageProxy: ImageProxy) {
+        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        
+        val originalBitmap = imageProxy.toBitmap()
+        
+        val rotatedBitmap = if (rotationDegrees != 0) {
+            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+            Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true).also {
+                if (it != originalBitmap) originalBitmap.recycle()
+            }
+        } else {
+            originalBitmap
+        }
+        
+        val document = documentDetector.detectDocumentMorphGradient(rotatedBitmap)
         
         val sourceWidth = rotatedBitmap.width
         val sourceHeight = rotatedBitmap.height

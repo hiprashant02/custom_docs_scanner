@@ -2,8 +2,13 @@ package com.documents.scanner.notes.pdf.maker.camera
 
 object DetectionConfig {
     
+    // Phase 7: Added HSV_SATURATION for colored document detection
+    // Phase 8: Added MORPH_GRADIENT for color-independent detection
+    // Based on SO: https://stackoverflow.com/questions/8667818 (answer by mmgp)
     enum class DetectionMode {
-        BITMAP_BGR_3CHANNELS,
+        BITMAP_BGR_3CHANNELS,     // Best for white paper
+        HSV_SATURATION,           // Best for colored backgrounds
+        MORPH_GRADIENT,           // Color-independent (dilation-erosion) - works for any paper
         PLANES_GRAYSCALE
     }
     

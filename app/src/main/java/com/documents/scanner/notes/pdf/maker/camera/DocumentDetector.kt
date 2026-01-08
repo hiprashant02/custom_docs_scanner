@@ -91,6 +91,138 @@ class DocumentDetector {
         }
     }
     
+    /**
+     * HSV Saturation-based detection for colored documents
+     * Best for: colored paper, colored backgrounds
+     */
+    fun detectDocumentHSV(bitmap: Bitmap): DetectedDocument? {
+        if (!isOpenCVInitialized && !initOpenCV()) return null
+        
+        try {
+            val srcMat = Mat()
+            Utils.bitmapToMat(bitmap, srcMat)
+            
+            val bgrMat = Mat()
+            Imgproc.cvtColor(srcMat, bgrMat, Imgproc.COLOR_RGBA2BGR)
+            
+            val imageArea = srcMat.cols().toDouble() * srcMat.rows().toDouble()
+            val imageCenter = Point(srcMat.cols() / 2.0, srcMat.rows() / 2.0)
+            
+            val squares = findSquaresHSV(bgrMat, imageArea)
+            
+            srcMat.release()
+            bgrMat.release()
+            
+            val bestSquare = findBestSquare(squares, imageArea, imageCenter)
+            
+            if (bestSquare != null) {
+                val ordered = orderCorners(bestSquare)
+                return DetectedDocument(
+                    corners = ordered.map { PointF(it.x.toFloat(), it.y.toFloat()) },
+                    confidence = 0.85f
+                )
+            }
+            
+            return null
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "HSV detection error", e)
+            return null
+        }
+    }
+    
+    /**
+     * Phase 8: Morphological Gradient detection (dilation - erosion)
+     * Based on SO: https://stackoverflow.com/questions/8667818 (answer by mmgp)
+     * 
+     * Color-independent - works for ANY paper color on ANY background.
+     * Uses: grayscale → median blur → morphological gradient → Otsu threshold → contours
+     */
+    fun detectDocumentMorphGradient(bitmap: Bitmap): DetectedDocument? {
+        if (!isOpenCVInitialized && !initOpenCV()) return null
+        
+        try {
+            val srcMat = Mat()
+            Utils.bitmapToMat(bitmap, srcMat)
+            
+            val imageArea = srcMat.cols().toDouble() * srcMat.rows().toDouble()
+            val imageCenter = Point(srcMat.cols() / 2.0, srcMat.rows() / 2.0)
+            
+            val squares = findSquaresMorphGradient(srcMat, imageArea)
+            
+            srcMat.release()
+            
+            val bestSquare = findBestSquare(squares, imageArea, imageCenter)
+            
+            if (bestSquare != null) {
+                val ordered = orderCorners(bestSquare)
+                return DetectedDocument(
+                    corners = ordered.map { PointF(it.x.toFloat(), it.y.toFloat()) },
+                    confidence = 0.85f
+                )
+            }
+            
+            return null
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "MorphGradient detection error", e)
+            return null
+        }
+    }
+    
+    /**
+     * Morphological Gradient approach from SO (mmgp):
+     * "Apply morphological gradient (dilation - erosion) and binarize by Otsu"
+     */
+    private fun findSquaresMorphGradient(image: Mat, imageArea: Double): MutableList<List<Point>> {
+        val squares = mutableListOf<List<Point>>()
+        
+        val minArea = imageArea * 0.05
+        val maxArea = imageArea * 0.90
+        
+        // Step 1: Convert to grayscale
+        val gray = Mat()
+        Imgproc.cvtColor(image, gray, Imgproc.COLOR_RGBA2GRAY)
+        
+        // Step 2: Apply median blur to remove minor details
+        val blurred = Mat()
+        Imgproc.medianBlur(gray, blurred, 9)
+        
+        // Step 3: Morphological gradient = dilation - erosion
+        val dilated = Mat()
+        val eroded = Mat()
+        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(3.0, 3.0))
+        Imgproc.dilate(blurred, dilated, kernel)
+        Imgproc.erode(blurred, eroded, kernel)
+        
+        val gradient = Mat()
+        Core.subtract(dilated, eroded, gradient)
+        
+        // Step 4: Binarize using Otsu's threshold
+        val binary = Mat()
+        Imgproc.threshold(gradient, binary, 0.0, 255.0, Imgproc.THRESH_BINARY or Imgproc.THRESH_OTSU)
+        
+        // Step 5: Apply thinning via morphological operations
+        val thinned = Mat()
+        Imgproc.dilate(binary, thinned, Mat())
+        
+        // Step 6: Find contours
+        findContoursAndFilter(thinned, minArea, maxArea, squares)
+        
+        // Cleanup
+        gray.release()
+        blurred.release()
+        dilated.release()
+        eroded.release()
+        kernel.release()
+        gradient.release()
+        binary.release()
+        thinned.release()
+        
+        Log.d(TAG, "[MorphGradient] Found ${squares.size} candidate squares")
+        return squares
+    }
+    
     private fun findSquares3Channels(image: Mat, imageArea: Double): MutableList<List<Point>> {
         val squares = mutableListOf<List<Point>>()
         
@@ -134,6 +266,116 @@ class DocumentDetector {
         
         Log.d(TAG, "[Grayscale] Found ${squares.size} candidate squares")
         return squares
+    }
+    
+    /**
+     * Phase 7: HSV Saturation-based detection for colored documents
+     * Based on SO: https://stackoverflow.com/questions/47899132/edge-detection-on-colored-background-using-opencv
+     * 
+     * White paper has low saturation, colored backgrounds have high saturation.
+     * This makes it easier to detect white/colored documents on any background.
+     */
+    private fun findSquaresHSV(image: Mat, imageArea: Double): MutableList<List<Point>> {
+        val squares = mutableListOf<List<Point>>()
+        
+        val minArea = imageArea * 0.05
+        val maxArea = imageArea * 0.90
+        
+        // Convert BGR to HSV
+        val hsv = Mat()
+        Imgproc.cvtColor(image, hsv, Imgproc.COLOR_BGR2HSV)
+        
+        // Split into H, S, V channels
+        val channels = mutableListOf<Mat>()
+        Core.split(hsv, channels)
+        val saturation = channels[1]  // Saturation channel
+        
+        // Apply blur to reduce noise
+        val blurred = Mat()
+        applyBlur(saturation, blurred)
+        
+        // Threshold the saturation channel
+        // THRESH_BINARY_INV: low saturation (white paper) becomes white (255)
+        val threshed = Mat()
+        Imgproc.threshold(blurred, threshed, 50.0, 255.0, Imgproc.THRESH_BINARY_INV)
+        
+        // Also try THRESH_BINARY for colored paper on neutral background
+        val threshedNormal = Mat()
+        Imgproc.threshold(blurred, threshedNormal, 50.0, 255.0, Imgproc.THRESH_BINARY)
+        
+        // Apply morphological operations
+        applyMorphologicalOps(threshed)
+        applyMorphologicalOps(threshedNormal)
+        
+        // Find contours in both thresholded images
+        findContoursAndFilter(threshed, minArea, maxArea, squares)
+        findContoursAndFilter(threshedNormal, minArea, maxArea, squares)
+        
+        // Also try Canny on saturation for edge-based detection
+        val gray = Mat()
+        applyCannyEdgeDetection(blurred, gray)
+        applyMorphologicalOps(gray)
+        findContoursAndFilter(gray, minArea, maxArea, squares)
+        
+        // Cleanup
+        hsv.release()
+        channels.forEach { it.release() }
+        blurred.release()
+        threshed.release()
+        threshedNormal.release()
+        gray.release()
+        
+        Log.d(TAG, "[HSV-Saturation] Found ${squares.size} candidate squares")
+        return squares
+    }
+    
+    /**
+     * Helper function to find and filter contours
+     */
+    private fun findContoursAndFilter(
+        binary: Mat,
+        minArea: Double,
+        maxArea: Double,
+        squares: MutableList<List<Point>>
+    ) {
+        val contours = mutableListOf<MatOfPoint>()
+        val hierarchy = Mat()
+        Imgproc.findContours(binary, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
+        
+        for (contour in contours) {
+            val contour2f = MatOfPoint2f(*contour.toArray())
+            val arcLen = Imgproc.arcLength(contour2f, true)
+            val approx = MatOfPoint2f()
+            Imgproc.approxPolyDP(contour2f, approx, arcLen * 0.02, true)
+            
+            val approxPoints = approx.toArray()
+            
+            if (approxPoints.size == 4) {
+                val area = abs(Imgproc.contourArea(approx))
+                val approxMat = MatOfPoint(*approxPoints)
+                
+                if (area >= minArea && area <= maxArea && Imgproc.isContourConvex(approxMat)) {
+                    var maxCosine = 0.0
+                    for (j in 2..4) {
+                        val cosine = abs(angle(
+                            approxPoints[j % 4],
+                            approxPoints[j - 2],
+                            approxPoints[j - 1]
+                        ))
+                        maxCosine = maxOf(maxCosine, cosine)
+                    }
+                    
+                    if (maxCosine < 0.3) {
+                        squares.add(approxPoints.toList())
+                    }
+                }
+                approxMat.release()
+            }
+            contour2f.release()
+            approx.release()
+            contour.release()
+        }
+        hierarchy.release()
     }
     
     private fun findSquaresInChannel(
