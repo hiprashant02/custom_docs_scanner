@@ -27,6 +27,7 @@ class ObjectDetectionAnalyzer(
 ) : ImageAnalysis.Analyzer {
     
     private val documentDetector: DocumentDetector
+    private val documentStabilizer: DocumentStabilizer
     
     private var lastDetectionTime = 0L
     private val detectionIntervalMs = 100L
@@ -37,6 +38,7 @@ class ObjectDetectionAnalyzer(
     
     init {
         documentDetector = DocumentDetector()
+        documentStabilizer = DocumentStabilizer()
         DocumentDetector.initOpenCV()
         Log.d(TAG, "DocumentDetector initialized, mode: ${DetectionConfig.currentMode}")
     }
@@ -161,17 +163,29 @@ class ObjectDetectionAnalyzer(
     }
     
     private fun handleDetectionResult(document: DetectedDocument?, sourceWidth: Int, sourceHeight: Int) {
-        if (document != null) {
+        // Update stabilizer config from DetectionConfig
+        documentStabilizer.enabled = DetectionConfig.stabilizationEnabled
+        documentStabilizer.alpha = DetectionConfig.stabilizationAlpha
+        
+        // Apply EMA stabilization to corners
+        val rawCorners = document?.corners
+        val stabilizedCorners = documentStabilizer.stabilize(rawCorners)
+        
+        if (stabilizedCorners != null && stabilizedCorners.size == 4) {
             missedFrameCount = 0
+            val stabilizedDocument = DetectedDocument(
+                corners = stabilizedCorners,
+                confidence = document?.confidence ?: 0.85f
+            )
             val result = DocumentDetectionResult(
-                document = document,
+                document = stabilizedDocument,
                 sourceWidth = sourceWidth,
                 sourceHeight = sourceHeight
             )
             lastValidResult = result
             
             if (DetectionConfig.enableLogging) {
-                Log.d(TAG, "Document detected (${DetectionConfig.currentMode}) in ${sourceWidth}x${sourceHeight}")
+                Log.d(TAG, "Document detected (stabilized) in ${sourceWidth}x${sourceHeight}")
             }
             onDocumentDetected?.invoke(result)
         } else {

@@ -46,7 +46,11 @@ object DetectionConfig {
     
 
 
-    // Phase 6: Temporal Stabilization - TODO (not implemented yet)
+    // Phase 6: Temporal Stabilization (Low-Pass Filter / EMA)
+    // Based on SO: https://stackoverflow.com/questions/4611599/smoothing-data-from-a-sensor
+    // Formula: output = output + α * (input - output)
+    var stabilizationEnabled: Boolean = true
+    var stabilizationAlpha: Float = 0.25f  // 0.1=very smooth, 0.5=responsive
     
     var currentMode: DetectionMode = DetectionMode.BITMAP_BGR_3CHANNELS
     var blurMode: BlurMode = BlurMode.GAUSSIAN_BLUR_5
