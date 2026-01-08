@@ -293,6 +293,120 @@ private fun CameraPreviewWithOverlay(
                 style = MaterialTheme.typography.bodySmall
             )
         }
+        
+        var showDebugPanel by remember { mutableStateOf(false) }
+        
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 48.dp, end = 16.dp)
+        ) {
+            Button(
+                onClick = { showDebugPanel = !showDebugPanel },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE91E63)
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.height(40.dp)
+            ) {
+                Text("DEBUG", style = MaterialTheme.typography.labelMedium, color = Color.White)
+            }
+            
+            if (showDebugPanel) {
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                var detectionState by remember { mutableStateOf(DetectionConfig.currentMode) }
+                var cannyState by remember { mutableStateOf(DetectionConfig.cannyMode) }
+                var morphState by remember { mutableStateOf(DetectionConfig.morphMode) }
+                var blurState by remember { mutableStateOf(DetectionConfig.blurMode) }
+                
+                Button(
+                    onClick = {
+                        val modes = DetectionConfig.DetectionMode.entries
+                        val nextIndex = (detectionState.ordinal + 1) % modes.size
+                        detectionState = modes[nextIndex]
+                        DetectionConfig.currentMode = detectionState
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(
+                        text = "D: ${detectionState.name.take(10)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Button(
+                    onClick = {
+                        val modes = DetectionConfig.CannyMode.entries
+                        val nextIndex = (cannyState.ordinal + 1) % modes.size
+                        cannyState = modes[nextIndex]
+                        DetectionConfig.cannyMode = cannyState
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2196F3)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(
+                        text = "C: ${cannyState.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Button(
+                    onClick = {
+                        val modes = DetectionConfig.MorphMode.entries
+                        val nextIndex = (morphState.ordinal + 1) % modes.size
+                        morphState = modes[nextIndex]
+                        DetectionConfig.morphMode = morphState
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF9800)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(
+                        text = "M: ${morphState.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Button(
+                    onClick = {
+                        val modes = DetectionConfig.BlurMode.entries
+                        val nextIndex = (blurState.ordinal + 1) % modes.size
+                        blurState = modes[nextIndex]
+                        DetectionConfig.blurMode = blurState
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF9C27B0)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(
+                        text = "B: ${blurState.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
+            }
+        }
     }
 }
 

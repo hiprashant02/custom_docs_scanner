@@ -147,7 +147,7 @@ class DocumentDetector {
         for (l in 0 until thresholdLevel) {
             if (l == 0) {
                 applyCannyEdgeDetection(channel, gray)
-                Imgproc.dilate(gray, gray, Mat())
+                applyMorphologicalOps(gray)
             } else {
                 val thresh = ((l + 1) * 255 / thresholdLevel).toDouble()
                 Imgproc.threshold(channel, gray, thresh, 255.0, Imgproc.THRESH_BINARY)
@@ -236,6 +236,37 @@ class DocumentDetector {
             }
             DetectionConfig.BlurMode.GAUSSIAN_BLUR_5 -> {
                 Imgproc.GaussianBlur(src, dst, Size(5.0, 5.0), 0.0)
+            }
+        }
+    }
+    
+    private fun applyMorphologicalOps(mat: Mat) {
+        when (DetectionConfig.morphMode) {
+            DetectionConfig.MorphMode.DILATE_ONLY -> {
+                Imgproc.dilate(mat, mat, Mat())
+            }
+            DetectionConfig.MorphMode.MORPH_CLOSE_WITH_ERODE -> {
+                val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(5.0, 5.0))
+                Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_CLOSE, kernel)
+                Imgproc.erode(mat, mat, kernel)
+                kernel.release()
+            }
+            DetectionConfig.MorphMode.MORPH_CLOSE_3x3 -> {
+                val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(3.0, 3.0))
+                Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_CLOSE, kernel)
+                kernel.release()
+            }
+            DetectionConfig.MorphMode.MORPH_CLOSE_5x5 -> {
+                val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(5.0, 5.0))
+                Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_CLOSE, kernel)
+                kernel.release()
+            }
+            DetectionConfig.MorphMode.MORPH_CLOSE_LEARNOPENCV -> {
+                val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(5.0, 5.0))
+                for (i in 0 until 3) {
+                    Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_CLOSE, kernel)
+                }
+                kernel.release()
             }
         }
     }
