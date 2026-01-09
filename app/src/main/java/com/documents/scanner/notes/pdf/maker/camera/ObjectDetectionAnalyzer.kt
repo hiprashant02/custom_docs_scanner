@@ -56,6 +56,9 @@ class ObjectDetectionAnalyzer(
         
         try {
             when (DetectionConfig.currentMode) {
+                DetectionConfig.DetectionMode.COMBINED_AUTO -> {
+                    analyzeCombinedMode(imageProxy)
+                }
                 DetectionConfig.DetectionMode.BITMAP_BGR_3CHANNELS -> {
                     analyzeBitmapMode(imageProxy)
                 }
@@ -74,6 +77,33 @@ class ObjectDetectionAnalyzer(
         } finally {
             imageProxy.close()
         }
+    }
+    
+    /**
+     * COMBINED detection - runs all methods and picks best
+     */
+    private fun analyzeCombinedMode(imageProxy: ImageProxy) {
+        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        
+        val originalBitmap = imageProxy.toBitmap()
+        
+        val rotatedBitmap = if (rotationDegrees != 0) {
+            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+            Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true).also {
+                if (it != originalBitmap) originalBitmap.recycle()
+            }
+        } else {
+            originalBitmap
+        }
+        
+        val document = documentDetector.detectDocumentCombined(rotatedBitmap)
+        
+        val sourceWidth = rotatedBitmap.width
+        val sourceHeight = rotatedBitmap.height
+        
+        handleDetectionResult(document, sourceWidth, sourceHeight)
+        
+        rotatedBitmap.recycle()
     }
     
     private fun analyzeBitmapMode(imageProxy: ImageProxy) {

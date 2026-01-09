@@ -4,11 +4,13 @@ object DetectionConfig {
     
     // Phase 7: Added HSV_SATURATION for colored document detection
     // Phase 8: Added MORPH_GRADIENT for color-independent detection
+    // Phase 9: COMBINED_AUTO - runs all methods, picks best result
     // Based on SO: https://stackoverflow.com/questions/8667818 (answer by mmgp)
     enum class DetectionMode {
+        COMBINED_AUTO,            // Runs all methods, picks best (most robust)
         BITMAP_BGR_3CHANNELS,     // Best for white paper
         HSV_SATURATION,           // Best for colored backgrounds
-        MORPH_GRADIENT,           // Color-independent (dilation-erosion) - works for any paper
+        MORPH_GRADIENT,           // Color-independent (dilation-erosion)
         PLANES_GRAYSCALE
     }
     
@@ -57,7 +59,7 @@ object DetectionConfig {
     var stabilizationEnabled: Boolean = true
     var stabilizationAlpha: Float = 0.25f  // 0.1=very smooth, 0.5=responsive
     
-    var currentMode: DetectionMode = DetectionMode.BITMAP_BGR_3CHANNELS
+    var currentMode: DetectionMode = DetectionMode.COMBINED_AUTO
     var blurMode: BlurMode = BlurMode.GAUSSIAN_BLUR_5
     var cannyMode: CannyMode = CannyMode.AUTO_OTSU
     var morphMode: MorphMode = MorphMode.DILATE_ONLY

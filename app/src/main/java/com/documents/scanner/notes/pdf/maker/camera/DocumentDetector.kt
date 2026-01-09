@@ -28,6 +28,62 @@ class DocumentDetector {
         }
     }
     
+    /**
+     * Phase 9: COMBINED detection - runs all methods and picks best result
+     * Most robust approach for any paper color on any background
+     */
+    fun detectDocumentCombined(bitmap: Bitmap): DetectedDocument? {
+        if (!isOpenCVInitialized && !initOpenCV()) return null
+        
+        try {
+            val srcMat = Mat()
+            Utils.bitmapToMat(bitmap, srcMat)
+            
+            val bgrMat = Mat()
+            Imgproc.cvtColor(srcMat, bgrMat, Imgproc.COLOR_RGBA2BGR)
+            
+            val imageArea = srcMat.cols().toDouble() * srcMat.rows().toDouble()
+            val imageCenter = Point(srcMat.cols() / 2.0, srcMat.rows() / 2.0)
+            
+            // Collect squares from ALL methods
+            val allSquares = mutableListOf<List<Point>>()
+            
+            // Method 1: BGR 3-channel (best for white paper)
+            val bgrSquares = findSquares3Channels(bgrMat, imageArea)
+            allSquares.addAll(bgrSquares)
+            
+            // Method 2: HSV Saturation (best for colored backgrounds)
+            val hsvSquares = findSquaresHSV(bgrMat, imageArea)
+            allSquares.addAll(hsvSquares)
+            
+            // Method 3: Morphological Gradient (color-independent)
+            val morphSquares = findSquaresMorphGradient(srcMat, imageArea)
+            allSquares.addAll(morphSquares)
+            
+            srcMat.release()
+            bgrMat.release()
+            
+            Log.d(TAG, "[COMBINED] Total candidates: ${allSquares.size} (BGR:${bgrSquares.size}, HSV:${hsvSquares.size}, Morph:${morphSquares.size})")
+            
+            // Find the best square from ALL results
+            val bestSquare = findBestSquare(allSquares, imageArea, imageCenter)
+            
+            if (bestSquare != null) {
+                val ordered = orderCorners(bestSquare)
+                return DetectedDocument(
+                    corners = ordered.map { PointF(it.x.toFloat(), it.y.toFloat()) },
+                    confidence = 0.95f  // Higher confidence for combined approach
+                )
+            }
+            
+            return null
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Combined detection error", e)
+            return null
+        }
+    }
+    
     fun detectDocument(bitmap: Bitmap): DetectedDocument? {
         if (!isOpenCVInitialized && !initOpenCV()) return null
         
